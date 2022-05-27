@@ -10,6 +10,9 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
+int reference_remove(uint64 pa);
+int reference_add(uint64 pa);
+extern uint64 cas(volatile void *add, int expected, int newval);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -23,11 +26,20 @@ struct {
   struct run *freelist;
 } kmem;
 
+// TODO: Add CAS as we did in the last assignment.
+
+int references[NUM_PYS_PAGES];
+// int ref_lock;                 // Lock of the references array. ACTUALLY DON'T NEED THIS.
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+
+  // Added:
+  // ref_lock = 0;  // Initialize ref_lock. 0 corresponds to an open lock.  DON'T NEED THIS (using cas)
+  memset(references, 0, sizeof(int)*NUM_PYS_PAGES);   // Need the 'sizeof(int)??
 }
 
 void
@@ -39,7 +51,7 @@ freerange(void *pa_start, void *pa_end)
     kfree(p);
 }
 
-// Free the page of physical memory pointed at by v,
+// Free the page of physical memory pointed at by v (should be pa),
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
@@ -51,6 +63,13 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  // Fill with junk to catch dangling refs.
+  memset(pa, 1, PGSIZE);
+
+  if (reference_remove((uint64)pa) > 0)
+    return;
+
+  references[PA_TO_IND(pa)] = 0;
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -72,11 +91,42 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
+    references[PA_TO_IND(r)] = 1;
     kmem.freelist = r->next;
+  }
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+// Find the amount of references to a physical page in the main memory.
+int 
+reference_find(uint64 pa)
+{
+  return references[PA_TO_IND(pa)];
+}
+
+// Add one to the reference count of physical page pa.
+int
+reference_add(uint64 pa)
+{
+  int old;
+  do{
+    old = references[PA_TO_IND(pa)];
+  } while (cas(&references[PA_TO_IND(pa)], old, old+1));
+  return old+1;
+}
+
+// Decrease one from the reference count of the physical page pa.
+int
+reference_remove(uint64 pa)
+{
+  int old;
+  do{
+    old = references[PA_TO_IND(pa)];
+  } while (cas(&references[PA_TO_IND(pa)], old, old+1));
+  return old-1;
 }

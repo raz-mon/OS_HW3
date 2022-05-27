@@ -15,6 +15,10 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+int reference_add(uint64 pa);
+int reference_remove(uint64 pa);
+int cow_handle(pagetable_t pagetable, uint64 va);
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -291,6 +295,7 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   freewalk(pagetable);
 }
 
+/*
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -326,6 +331,41 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
+*/
+
+// New implementation:
+int
+uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 va, pa;
+
+  for (va = 0; va < sz; va += PGSIZE) {
+    
+    if ((pte = walk(old, va, 0)) == 0) 
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+
+    pa = PTE2PA(*pte);
+
+    if (*pte & PTE_W)
+      *pte = (*pte | PTE_COW) & ~PTE_W;
+
+    if(mappages(new, va, PGSIZE, pa, (uint)PTE_FLAGS(*pte)) < 0)
+      goto err;
+
+    reference_add(pa);
+  }
+  return 0;
+
+  err:
+  uvmunmap(new, 0, va / PGSIZE, 1);
+  return -1;
+}
+
+
+
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -350,6 +390,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if (cow_handle(pagetable, va0) < 0)
+      return -1;
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
