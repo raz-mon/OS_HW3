@@ -241,10 +241,10 @@ cow_handle(pagetable_t pagetable, uint64 va)
   if ((pte = walk(pagetable, va, 0)) == 0)
     return -1;
   if ((*pte & PTE_V) == 0)
-    return -1;
+    return -1;  // Non-valid page.
 
   if ((*pte & PTE_COW) == 0)
-    return 1;
+    return 1;   // Not a COW page.
 
   char *n_pa;
   if ((n_pa = kalloc()) != 0) {

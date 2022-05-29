@@ -26,6 +26,8 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+extern uint64 cas(volatile void *add, int expected, int newval);
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -596,6 +598,15 @@ kill(int pid)
   return -1;
 }
 
+void check_stuff(void){
+  int x = 5;
+  printf("x=%d\n", x);
+  cas(&x, 5, 6);
+  printf("x=%d\n", x);
+  cas(&x, 6, 2);
+  printf("x=%d\n", x);
+}
+
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
@@ -654,3 +665,5 @@ procdump(void)
     printf("\n");
   }
 }
+
+

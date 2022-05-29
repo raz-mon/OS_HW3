@@ -10,8 +10,8 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
+
 int reference_remove(uint64 pa);
-int reference_add(uint64 pa);
 extern uint64 cas(volatile void *add, int expected, int newval);
 
 extern char end[]; // first address after kernel.
@@ -66,10 +66,15 @@ kfree(void *pa)
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
-  if (reference_remove((uint64)pa) > 0)
+  if (reference_remove((uint64)pa) > 0)     // Other pages are still pointing here (using the physical page).
     return;
 
-  references[PA_TO_IND(pa)] = 0;
+  // references[PA_TO_IND(pa)] = 0;
+  // int old;
+  // do{
+  //   old = references[PA_TO_IND(pa)];
+  // } while(cas(&references[PA_TO_IND(pa)], old, 0));
+  
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -106,27 +111,30 @@ kalloc(void)
 int 
 reference_find(uint64 pa)
 {
-  return references[PA_TO_IND(pa)];
+  uint64 pa_d = PGROUNDDOWN(pa);
+  return references[PA_TO_IND(pa_d)];
 }
 
 // Add one to the reference count of physical page pa.
 int
 reference_add(uint64 pa)
 {
+  uint64 pa_d = PGROUNDDOWN(pa);
   int old;
   do{
-    old = references[PA_TO_IND(pa)];
-  } while (cas(&references[PA_TO_IND(pa)], old, old+1));
-  return old+1;
+    old = references[PA_TO_IND(pa_d)];
+  } while (cas(&references[PA_TO_IND(pa_d)], old, old+1));
+  return references[PA_TO_IND(pa_d)];
 }
 
 // Decrease one from the reference count of the physical page pa.
 int
 reference_remove(uint64 pa)
 {
+  // uint64 pa_d = PGROUNDDOWN(pa);
   int old;
   do{
     old = references[PA_TO_IND(pa)];
-  } while (cas(&references[PA_TO_IND(pa)], old, old+1));
-  return old-1;
+  } while (cas(&references[PA_TO_IND(pa)], old, old-1));
+  return references[PA_TO_IND(pa)];
 }

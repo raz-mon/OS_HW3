@@ -16,7 +16,6 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 extern char trampoline[]; // trampoline.S
 
 int reference_add(uint64 pa);
-int reference_remove(uint64 pa);
 int cow_handle(pagetable_t pagetable, uint64 va);
 
 // Make a direct-map page table for the kernel.
