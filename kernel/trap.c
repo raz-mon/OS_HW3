@@ -228,7 +228,7 @@ devintr()
   }
 }
 
-
+// Handle a page-fault due to an unwritabble page tried to be writton on.
 int
 cow_handle(pagetable_t pagetable, uint64 va)
 {

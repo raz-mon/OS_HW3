@@ -600,10 +600,15 @@ kill(int pid)
 
 void check_stuff(void){
   int x = 5;
+  int temp;
   printf("x=%d\n", x);
-  cas(&x, 5, 6);
+  do{
+    temp = x;
+  } while (cas(&x, temp, 6));
   printf("x=%d\n", x);
-  cas(&x, 6, 2);
+  do{
+    temp = x;
+  } while (cas(&x, temp, 2));
   printf("x=%d\n", x);
 }
 

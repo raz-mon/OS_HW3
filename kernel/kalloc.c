@@ -29,7 +29,6 @@ struct {
 // TODO: Add CAS as we did in the last assignment.
 
 int references[NUM_PYS_PAGES];
-// int ref_lock;                 // Lock of the references array. ACTUALLY DON'T NEED THIS.
 
 void
 kinit()
@@ -38,8 +37,7 @@ kinit()
   freerange(end, (void*)PHYSTOP);
 
   // Added:
-  // ref_lock = 0;  // Initialize ref_lock. 0 corresponds to an open lock.  DON'T NEED THIS (using cas)
-  memset(references, 0, sizeof(int)*NUM_PYS_PAGES);   // Need the 'sizeof(int)??
+  memset(references, 0, sizeof(int)*NUM_PYS_PAGES);
 }
 
 void
@@ -63,17 +61,14 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
-
   if (reference_remove((uint64)pa) > 0)     // Other pages are still pointing here (using the physical page).
     return;
 
   // references[PA_TO_IND(pa)] = 0;
-  // int old;
-  // do{
-  //   old = references[PA_TO_IND(pa)];
-  // } while(cas(&references[PA_TO_IND(pa)], old, 0));
+  int old;
+  do{
+    old = references[PA_TO_IND(pa)];
+  } while(cas(&references[PA_TO_IND(pa)], old, 0));
   
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -97,7 +92,11 @@ kalloc(void)
   acquire(&kmem.lock);
   r = kmem.freelist;
   if(r){
-    references[PA_TO_IND(r)] = 1;
+    // references[PA_TO_IND(r)] = 1;
+    int old;
+    do{
+      old = references[PA_TO_IND(r)];
+    } while(cas(&references[PA_TO_IND(r)], old, 1));
     kmem.freelist = r->next;
   }
   release(&kmem.lock);
@@ -111,8 +110,8 @@ kalloc(void)
 int 
 reference_find(uint64 pa)
 {
-  uint64 pa_d = PGROUNDDOWN(pa);
-  return references[PA_TO_IND(pa_d)];
+  // uint64 pa_d = PGROUNDDOWN(pa);
+  return references[PA_TO_IND(pa)];
 }
 
 // Add one to the reference count of physical page pa.

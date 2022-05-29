@@ -364,8 +364,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 }
 
 
-
-
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void
@@ -389,8 +387,6 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    if (cow_handle(pagetable, va0) < 0)
-      return -1;
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
