@@ -1,6 +1,8 @@
 Possible places for problems:
     - Do we need to change copyout as well?
         If so, not sure I understand why. 
+    
+    - Should we make sure that the COW-flag is 0 when the reference-array value is 1?
 
 
 

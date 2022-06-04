@@ -247,6 +247,7 @@ cow_handle(pagetable_t pagetable, uint64 va)
     return 1;   // Not a COW page.
 
   char *n_pa;
+  // Add: Check if reference-count is 1. If so --> Just make the page non-COW and writeable! No need to make another copy!
   if ((n_pa = kalloc()) != 0) {
     uint64 pa = PTE2PA(*pte);
     memmove(n_pa, (char*)pa, PGSIZE);
