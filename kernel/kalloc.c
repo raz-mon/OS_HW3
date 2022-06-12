@@ -64,7 +64,6 @@ kfree(void *pa)
   if (reference_remove((uint64)pa) > 0)     // Other pages are still pointing here (using the physical page).
     return;
 
-  // references[PA_TO_IND(pa)] = 0;
   int old;
   do{
     old = references[PA_TO_IND(pa)];
@@ -92,7 +91,6 @@ kalloc(void)
   acquire(&kmem.lock);
   r = kmem.freelist;
   if(r){
-    // references[PA_TO_IND(r)] = 1;
     int old;
     do{
       old = references[PA_TO_IND(r)];
