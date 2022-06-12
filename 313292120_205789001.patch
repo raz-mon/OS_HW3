@@ -62,7 +62,7 @@ index 3564db4..5c3dc77 100644
  int             copyin(pagetable_t, char *, uint64, uint64);
  int             copyinstr(pagetable_t, char *, uint64, uint64);
 diff --git a/kernel/kalloc.c b/kernel/kalloc.c
-index fa6a0ac..7c5e61e 100644
+index fa6a0ac..59d48c8 100644
 --- a/kernel/kalloc.c
 +++ b/kernel/kalloc.c
 @@ -11,6 +11,9 @@
@@ -103,14 +103,13 @@ index fa6a0ac..7c5e61e 100644
  // which normally should have been returned by a
  // call to kalloc().  (The exception is when
  // initializing the allocator; see kinit above.)
-@@ -51,6 +61,15 @@ kfree(void *pa)
+@@ -51,6 +61,14 @@ kfree(void *pa)
    if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
      panic("kfree");
  
 +  if (reference_remove((uint64)pa) > 0)     // Other pages are still pointing here (using the physical page).
 +    return;
 +
-+  // references[PA_TO_IND(pa)] = 0;
 +  int old;
 +  do{
 +    old = references[PA_TO_IND(pa)];
@@ -119,13 +118,12 @@ index fa6a0ac..7c5e61e 100644
    // Fill with junk to catch dangling refs.
    memset(pa, 1, PGSIZE);
  
-@@ -72,11 +91,49 @@ kalloc(void)
+@@ -72,11 +90,48 @@ kalloc(void)
  
    acquire(&kmem.lock);
    r = kmem.freelist;
 -  if(r)
 +  if(r){
-+    // references[PA_TO_IND(r)] = 1;
 +    int old;
 +    do{
 +      old = references[PA_TO_IND(r)];
@@ -287,7 +285,7 @@ index e8bcda9..e421b48 100644
 +}
 +
 diff --git a/kernel/trap.c b/kernel/trap.c
-index a63249e..f56c8ba 100644
+index a63249e..c783f60 100644
 --- a/kernel/trap.c
 +++ b/kernel/trap.c
 @@ -11,6 +11,10 @@ uint ticks;
@@ -314,7 +312,7 @@ index a63249e..f56c8ba 100644
    } else if((which_dev = devintr()) != 0){
      // ok
    } else {
-@@ -218,3 +228,35 @@ devintr()
+@@ -218,3 +228,34 @@ devintr()
    }
  }
  
@@ -337,7 +335,6 @@ index a63249e..f56c8ba 100644
 +    return 1;   // Not a COW page.
 +
 +  char *n_pa;
-+  // Add: Check if reference-count is 1. If so --> Just make the page non-COW and writeable! No need to make another copy!
 +  if ((n_pa = kalloc()) != 0) {
 +    uint64 pa = PTE2PA(*pte);
 +    memmove(n_pa, (char*)pa, PGSIZE);
